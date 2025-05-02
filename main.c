@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//FIMOZ RULIT!!!
+//FIMOZ RULIT!!
 void
 hexdump (unsigned long bse, char *buf, int len)
 {

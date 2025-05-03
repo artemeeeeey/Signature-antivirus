@@ -172,6 +172,10 @@ void hexdump(char *buf, int len) {
     }
 }
 
+int rot13(char a){
+    return a-0xD;
+}
+
 char* ya_gomoseksualist(uint8_t *hash) {
     int pos=0;
     char *result = (char*)malloc(33);
@@ -207,7 +211,17 @@ int parse_pattern(const char *str, BytePattern *pattern) {
             pattern->mask[len] = 1;
             i += 2;
             len++;
-        } else {
+        }
+        else if (isxdigit(rot13(str[i])) && isxdigit(rot13(str[i+1]))) {
+            char byte_str[3] = {str[i], str[i+1], '\0'};
+            if (sscanf(byte_str, "%2hhx", &pattern->data[len]) != 1) {
+                return 0;
+            }
+            pattern->mask[len] = 1;
+            i += 2;
+            len++;
+        } 
+        else {
             return 0;
         }
     }
@@ -236,7 +250,7 @@ int find_pattern(const uint8_t *buffer, size_t buf_len, const BytePattern *patte
     for (size_t i = 0; i <= limit; i++) {
         int match = 1;
         for (size_t j = 0; j < pattern->length; j++) {
-            if (pattern->mask[j] && buffer[i + j] != pattern->data[j]) {
+            if (pattern->mask[j] && (buffer[i + j] != pattern->data[j] || rot13(buffer[i + j]) != pattern->data[j])) {
                 match = 0;
                 break;
             }

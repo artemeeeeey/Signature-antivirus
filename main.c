@@ -11,7 +11,6 @@
 #define D 0x10325476
 #define MAX_PATTERNS 102000
 #define MAX_PATTERN_LEN 1024
-#define BUFFER_SIZE (10 * 1024 * 20)
 
 typedef struct {
     uint64_t size;        // Size of input in bytes
@@ -172,8 +171,14 @@ void hexdump(char *buf, int len) {
     }
 }
 
-int rot13(char a){
-    return a-0xD;
+uint8_t rot13_left(uint8_t a){
+    //printf("%02x ", (a-0xD+0x100) % 0x100);
+    return (a-0xD+0x100) % 0x100;
+}
+
+uint8_t rot13_right(uint8_t a){
+    //printf("%02x ", (a+0xD+0x100) % 0x100);
+    return (a+0xD+0x100) % 0x100;
 }
 
 char* ya_gomoseksualist(uint8_t *hash) {
@@ -212,15 +217,6 @@ int parse_pattern(const char *str, BytePattern *pattern) {
             i += 2;
             len++;
         }
-        else if (isxdigit(rot13(str[i])) && isxdigit(rot13(str[i+1]))) {
-            char byte_str[3] = {str[i], str[i+1], '\0'};
-            if (sscanf(byte_str, "%2hhx", &pattern->data[len]) != 1) {
-                return 0;
-            }
-            pattern->mask[len] = 1;
-            i += 2;
-            len++;
-        } 
         else {
             return 0;
         }
@@ -243,21 +239,19 @@ int load_patterns(const char *filename) {
     return 1;
 }
 
+
 int find_pattern(const uint8_t *buffer, size_t buf_len, const BytePattern *pattern) {
     if (pattern->length == 0 || buf_len < pattern->length) return 0;
-    
     const size_t limit = buf_len - pattern->length;
     for (size_t i = 0; i <= limit; i++) {
         int match = 1;
         for (size_t j = 0; j < pattern->length; j++) {
-            if (pattern->mask[j] && (buffer[i + j] != pattern->data[j] || rot13(buffer[i + j]) != pattern->data[j])) {
+            if (pattern->mask[j] && (buffer[i + j] != pattern->data[j])) {
                 match = 0;
                 break;
             }
         }
         if (match) {
-            //printf("len is %d\n", pattern->length);
-            //printf("num_patterns is %d\n", num_patterns);
             printf("match at address: 0x%08zx\n", i);
             printf("found pattern: %s\n", pattern->original);
             return 1;
@@ -269,17 +263,25 @@ int find_pattern(const uint8_t *buffer, size_t buf_len, const BytePattern *patte
 int main(int argc, char *argv[]) {
     FILE *f = fopen(argv[1], "rb");
 
-    uint8_t buffer[640000];
-    uint8_t hash[16];
-
-    size_t bytes_read = fread(buffer, 1, sizeof(buffer), f);
-
     MD5Context ctx;
     md5Init(&ctx);
-    md5Update(&ctx, buffer, bytes_read);
+
+    uint8_t buffer[4096];
+    size_t total_bytes = 0;
+
+    while (!feof(f)) {
+        size_t bytes_read = fread(buffer, 1, 4096, f);
+        if (bytes_read > 0) {
+            md5Update(&ctx, buffer, bytes_read);
+            total_bytes += bytes_read;
+        }
+    }
+
+    uint8_t hash[16];
     md5Finalize(&ctx);
     memcpy(hash, ctx.digest, 16);
-    hexdump((char *)buffer, bytes_read);
+
+    printf("read: %d\n", total_bytes);
     char* result = ya_gomoseksualist(hash);
     fclose(f);
 
@@ -301,21 +303,46 @@ int main(int argc, char *argv[]) {
 
     
     load_patterns("bytes.txt");
-    uint8_t *file_content = malloc(BUFFER_SIZE);
-
+    uint8_t *file_content = (uint8_t*)malloc(100000);
+    uint8_t *temp = (uint8_t*)malloc(100000);
     FILE *target_file = fopen(argv[1], "rb");
-    size_t bytes_r = fread(file_content, 1, BUFFER_SIZE, target_file);
-    fclose(target_file);
+    while (!feof(target_file)){
+        size_t bytes_r = fread(file_content, 1, 100000, target_file);
+        //printf("%d\n", bytes_r);
 
-    int found = 0;
-    for (int i = 0; i < num_patterns; i++) {
-        if (find_pattern(file_content, bytes_r, &patterns[i])) {
-            free(file_content);
-            printf("file contains malicious byte pattern\n");
-            return 0;
+        int found = 0;
+        for (int i = 0; i < num_patterns; i++) {
+            if (find_pattern(file_content, bytes_r, &patterns[i])) {
+                free(file_content);
+                printf("file contains malicious byte pattern\n");
+                return 0;
+            }
+        }
+        for (int i = 0; i < bytes_r; i++){
+            temp[i] = rot13_left(file_content[i]);
+        }
+        for (int i = 0; i < num_patterns; i++) {
+            if (find_pattern(temp, bytes_r, &patterns[i])) {
+                free(file_content);
+                free(temp);
+                printf("file contains malicious byte pattern which has been encoded via rot13 in left\n");
+                return 0;
+            }
+        }
+
+        for (int i = 0; i < bytes_r; i++){
+            temp[i] = rot13_right(file_content[i]);
+        }
+        for (int i = 0; i < num_patterns; i++) {
+            if (find_pattern(temp, bytes_r, &patterns[i])) {
+                free(file_content);
+                free(temp);
+                printf("file contains malicious byte pattern which has been encoded via rot13 in right\n");
+                return 0;
+            }
         }
     }
-
+    fclose(target_file);
     free(file_content);
     printf("file is safe\n");
     return 0;

@@ -225,6 +225,7 @@ int main(int argc, char *argv[]) {
     }
     fclose(file_sha256);
     fclose(file_md5);
+    int count = 0;
     //printf("argc is %d and argv is %s\n", argc, argv[2]);
     if (argc==3 && strcmp(argv[2], "--deep")==0){
         load_patterns("bytes.txt");
@@ -280,6 +281,8 @@ int main(int argc, char *argv[]) {
                     return 0;
                 }
             }
+            count++;
+            printf("processed %d%% of file\n", (count*100000*100)/total_bytes);
         }
         fclose(target_file);
         free(file_content);

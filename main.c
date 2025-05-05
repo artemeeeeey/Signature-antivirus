@@ -193,8 +193,8 @@ int main(int argc, char *argv[]) {
     printf("SHA256 hash is %s\n", res);
     free(res);
 
-    FILE* file_md5 = fopen("hash.txt", "a+");
-    FILE* file_sha256 = fopen("sha256.txt", "a+");
+    FILE* file_md5 = fopen("hashes&sigs\\md5.txt", "a+");
+    FILE* file_sha256 = fopen("hashes&&sigs\\sha256.txt", "a+");
     char buff[256];
     printf("MD5 result is %s\n", result);
 

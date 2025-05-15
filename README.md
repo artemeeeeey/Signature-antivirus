@@ -1,1 +1,3 @@
-#zmey korol fimoza
+simple signature antivirus
+
+made by SPBSTU IBKS students
